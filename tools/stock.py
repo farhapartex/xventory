@@ -4,6 +4,10 @@ from langchain_core.tools import BaseTool
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
+from rapidfuzz import process, fuzz
+
+_SIM_THRESHOLD = 0.22        # cosine-distance threshold for Chroma
+_FUZZ_THRESHOLD = 70
 
 
 class StockCheckInput(BaseModel):
@@ -31,10 +35,73 @@ class VectorProductStockTool(BaseTool):
     def __init__(self, vectorstore: Chroma, csv_data: pd.DataFrame):
         super().__init__(vectorstore=vectorstore, csv_data=csv_data)
 
+        self._name_index = self.csv_data["name"].fillna("").tolist()
+        self._sku_index = self.csv_data["sku"].fillna("").tolist()
+        self._desc_index = self.csv_data["description"].fillna("").tolist()
+
+
+    def __call__(self, query: str) -> str:
+        docs = self._semantic_lookup(query)
+        if not docs:
+            docs = self._fuzzy_lookup(query)
+
+        if not docs:
+            return f"No products found matching '{query}'. Please check the product name or SKU."
+
+        best = docs[0]
+        m = best.metadata
+        low = m["quantity"] <= m.get("low_stock_threshold", 10)
+
+        answer = (
+            f"**{m['name']}**\n"
+            f"SKU `{m['sku']}` • Qty: **{m['quantity']}** "
+            f"({'LOW STOCK ⚠️' if low else 'in stock'})\n"
+            f"Price: {m['price']} {m.get('currency', 'USD')}"
+        )
+        return answer
+
+
+    def _semantic_lookup(self, query: str):
+        res = self.vectorstore.similarity_search_with_score(
+            query,
+            #search_type="similarity_score_threshold",
+            #search_kwargs={"score_threshold": _SIM_THRESHOLD},
+            k=4
+        )
+        return [doc for doc, score in res]
+
+    def _fuzzy_lookup(self, query: str):
+        best_hit = None
+        best_score = 0
+        best_row = None
+
+        def _check(choices):
+            nonlocal best_hit, best_score, best_row
+            hit, score, idx = process.extractOne(query, choices, scorer=fuzz.WRatio)
+            if score > best_score:
+                best_score, best_hit, best_row = score, hit, idx
+
+        _check(self._name_index)
+        _check(self._sku_index)
+        _check(self._desc_index)
+
+        if best_score < _FUZZ_THRESHOLD:
+            return []
+
+        row = self.df.iloc[best_row]
+        doc = Document(
+            page_content=str(row.get("description", "")),
+            metadata=row.to_dict()
+        )
+        return [doc]
+
     def _run(self, query: str) -> str:
         try:
             query = query.strip().lower()
-            relevant_docs = self._vector_search(query)
+            #relevant_docs = self._vector_search(query)
+            relevant_docs = self._semantic_lookup(query)
+            if not relevant_docs:
+                relevant_docs = self._fuzzy_lookup(query)
 
             if not relevant_docs:
                 return f"No products found matching '{query}'. Please check the product name or SKU."
