@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 from rapidfuzz import process, fuzz
 
-_SIM_THRESHOLD = 0.22        # cosine-distance threshold for Chroma
+_SIM_THRESHOLD = 0.22
 _FUZZ_THRESHOLD = 70
 
 
@@ -64,8 +64,6 @@ class VectorProductStockTool(BaseTool):
     def _semantic_lookup(self, query: str):
         res = self.vectorstore.similarity_search_with_score(
             query,
-            #search_type="similarity_score_threshold",
-            #search_kwargs={"score_threshold": _SIM_THRESHOLD},
             k=4
         )
         return [doc for doc, score in res]
