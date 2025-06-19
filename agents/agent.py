@@ -5,7 +5,7 @@ from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import OpenAIEmbeddings,  ChatOpenAI
 from langchain.agents.agent import AgentExecutor
 from langchain.agents.openai_functions_agent.base import create_openai_functions_agent
-from tools.stock import ProductStockTool
+from tools.stock import VectorProductStockTool
 
 
 def create_product_documents(df: pd.DataFrame):
@@ -57,7 +57,10 @@ def create_product_documents(df: pd.DataFrame):
 
     return documents
 
-def setup_vectorstore(df: pd.DataFrame, embeddings: OpenAIEmbeddings):
+def setup_vectorstore(
+        df: pd.DataFrame,
+        embeddings: OpenAIEmbeddings
+):
     try:
         documents = create_product_documents(df)
         vectorstore = Chroma.from_documents(
@@ -79,9 +82,11 @@ def initialize_agent(api_key):
     return llm
 
 
-def create_agent(api_key: str, df: pd.DataFrame):
+def create_agent(api_key, df: pd.DataFrame):
     llm = initialize_agent(api_key)
-    stock_tool = ProductStockTool(csv_data=df)
+    embeddings = OpenAIEmbeddings(api_key=api_key)
+    vectorstore = setup_vectorstore(df, embeddings)
+    stock_tool = VectorProductStockTool(csv_data=df, vectorstore=vectorstore)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are xventory, an AI assistant specialized in inventory management.

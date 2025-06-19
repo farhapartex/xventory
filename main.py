@@ -12,20 +12,19 @@ file_path = os.getenv("FILE_PATH")
 if __name__ == "__main__":
     df = load_csv_as_dataframe(file_path)
     agent = create_agent(OPENAI_API_KEY, df)
-    # TODO: will move those queries to README later
-    example_queries = [
-        "Check stock for 'Inverse static help-desk'",
-        "What products are low in stock? check first 20 product.",
-        "Show me inventory for SKU 354275DF",
-        "Check stock status for '59DA72CD'",
-        "How many units do we have of 'Virtual grid-enabled intranet'?"
-    ]
     print("xventory AI Agent - Inventory Management Assistant")
     print("=" * 50)
 
-    for query in example_queries:
-        print(f"\nQuery: {query}\n")
-        result = run_query(agent, query)
-        print(result)
+    while True:
+        user_input = input("\n You: ").strip()
+        if user_input.lower() == "quit":
+            print("Goodbye!")
+            break
+        elif user_input.lower() == "memory":
+            print("Feature is on the way!")
+        else:
+            result = run_query(agent, user_input)
+            print(f"Agent: {result}")
+
         print("\n" + "=" * 50)
 
