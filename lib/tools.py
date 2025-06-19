@@ -21,3 +21,4 @@ def load_csv_as_dataframe(file_path: str) -> pd.DataFrame:
         return df
     except Exception as e:
         return pd.DataFrame()
+
